@@ -4,8 +4,8 @@ File info and hashing.
 import hashlib
 from pathlib import Path
 
-def get_file_info(filepath: str) -> dict:
-    """Basic file metadata: path, size, and cryptographic hashes."""
+def file_info(filepath: str) -> dict:
+    """Return basic file metadata and hashes."""
     p = Path(filepath)
     data = p.read_bytes()
 

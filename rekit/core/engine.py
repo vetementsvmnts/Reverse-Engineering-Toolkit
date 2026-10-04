@@ -1,62 +1,43 @@
 """
-Core engine - orchestrates all analysis modules.
+Core engine that orchestrates all analysis modules.
 """
+from rekit.analysis.file_info import file_info
 from rekit.analysis.mitigations import analyze_mitigations
-from rekit.analysis.file_info import get_file_info
 from rekit.analysis.strings import extract_strings, categorize_strings
-from rekit.analysis.entropy import analyze_entropy, get_suspicious_sections
-from rekit.analysis.cve import lookup_cve
+from rekit.analysis.entropy import entropy_analysis
 from rekit.analysis.disassembly import disassemble_function, extract_cmp_constants
+from rekit.analysis.cve import lookup_cve
 
 
 class RekitEngine:
-    """Main orchestrator for the RE toolkit."""
-
     def __init__(self, filepath: str):
         self.filepath = filepath
 
-    def run_full_analysis(self) -> dict:
-        """Run every analysis module and return all findings."""
-        return {
-            "file_info":     self.get_file_info(),
-            "mitigations":   self.get_mitigations(),
-            "strings":       self.get_strings(),
-            "entropy":       self.get_entropy(),
-            "disassembly":   self.get_disassembly(),
-        }
-
     def get_file_info(self) -> dict:
-        return get_file_info(self.filepath)
+        return file_info(self.filepath)
 
     def get_mitigations(self) -> dict:
         return analyze_mitigations(self.filepath)
 
     def get_strings(self) -> dict:
-        strings = extract_strings(self.filepath)
-        return {
-            "all":        strings,
-            "categories": categorize_strings(strings),
-        }
+        all_strings = extract_strings(self.filepath)
+        categories = categorize_strings(all_strings)
+        return {"all": all_strings, "categories": categories}
 
     def get_entropy(self) -> dict:
-        results = analyze_entropy(self.filepath)
-        return {
-            "sections":   results,
-            "suspicious": get_suspicious_sections(results),
-        }
+        return entropy_analysis(self.filepath)
 
     def get_disassembly(self, function_name: str = "main") -> dict:
         try:
             instructions = disassemble_function(self.filepath, function_name)
-            comparisons  = extract_cmp_constants(instructions)
+            cmp_constants = extract_cmp_constants(instructions)
             return {
-                "function":     function_name,
+                "function": function_name,
                 "instructions": instructions,
-                "cmp_constants": comparisons,
+                "cmp_constants": cmp_constants,
             }
         except Exception as e:
             return {"error": str(e)}
 
-    def get_cves(self, keyword: str, limit: int = 5) -> list[dict]:
+    def get_cves(self, keyword: str, limit: int = 5) -> list:
         return lookup_cve(keyword, limit=limit)
-
