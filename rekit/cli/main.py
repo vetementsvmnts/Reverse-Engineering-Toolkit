@@ -21,7 +21,7 @@ BANNER = r"""
  ██╔══██╗██╔══╝  ██╔═██╗ ██║   ██║
  ██║  ██║███████╗██║  ██╗██║   ██║
  ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝   ╚═╝
-[/bold cyan][dim]RE Toolkit v0.2.0 — Modular Edition[/dim]
+[/bold cyan][dim]RE Toolkit v0.3.0 — Auto-Solver Edition[/dim]
 """
 
 
@@ -95,6 +95,35 @@ def show_disassembly(engine: RekitEngine):
         console.print("[dim]No immediate cmp constants found.[/dim]")
 
 
+def show_solver(engine: RekitEngine):
+    """Display the auto-solver report."""
+    report = engine.solve()
+
+    if report.get("error"):
+        console.print(f"[red][!] Solver error: {report['error']}[/red]")
+        return
+
+    candidates = report.get("candidates", [])
+    warnings = report.get("warnings", [])
+
+    if not candidates:
+        console.print("[yellow]No password candidates found.[/yellow]")
+        return
+
+    console.print("\n[bold yellow]=== AUTO-SOLVER RESULTS ===[/bold yellow]")
+    for c in candidates:
+        console.print(f"\n  [bold]Address:[/bold] {c['address']}")
+        console.print(f"  [bold]Instruction:[/bold] cmp {c['register']}, {c['hex']}")
+        console.print(f"  [bold]Format string:[/bold] {c['format']}")
+        console.print(f"  [bold]Interpreted as:[/bold] {c['interpreted_as']}")
+        console.print(f"  [bold green]→ Suggested password: {c['decimal']}[/bold green]")
+
+    if warnings:
+        console.print("\n[bold red]=== WARNINGS ===[/bold red]")
+        for w in warnings:
+            console.print(f"  [yellow]![/yellow] {w}")
+
+
 def show_cve(engine: RekitEngine):
     keyword = Prompt.ask("[bold cyan]Enter software name or CVE keyword[/bold cyan]")
     try:
@@ -139,13 +168,14 @@ def menu():
         "[bold cyan]5[/bold cyan]  Entropy\n"
         "[bold cyan]6[/bold cyan]  Disassembly (cmp constants)\n"
         "[bold cyan]7[/bold cyan]  CVE lookup\n"
+        "[bold cyan]8[/bold cyan]  Auto-solver (find password)\n"
         "[bold cyan]0[/bold cyan]  Exit",
         title="[bold magenta]RE Toolkit[/bold magenta]",
         border_style="magenta",
     ))
 
     choice = Prompt.ask("[bold cyan]Choose[/bold cyan]",
-                        choices=[str(i) for i in range(8)], default="1")
+                        choices=[str(i) for i in range(9)], default="1")
 
     if choice == "0":
         console.print("[bold green]Goodbye![/bold green]")
@@ -165,6 +195,7 @@ def menu():
         elif choice == "5": show_entropy(engine)
         elif choice == "6": show_disassembly(engine)
         elif choice == "7": show_cve(engine)
+        elif choice == "8": show_solver(engine)
     except Exception as e:
         console.print(f"[red][!] Error: {e}[/red]")
 
