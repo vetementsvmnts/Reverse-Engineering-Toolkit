@@ -8,6 +8,7 @@ from rekit.analysis.entropy import entropy_analysis
 from rekit.analysis.disassembly import disassemble_function, extract_cmp_constants
 from rekit.analysis.cve import lookup_cve
 from rekit.analysis.format_strings import find_format_strings
+from rekit.analysis.dynamic import run_strace, run_ltrace
 
 
 class RekitEngine:
@@ -45,6 +46,12 @@ class RekitEngine:
 
     def get_cves(self, keyword: str, limit: int = 5) -> list:
         return lookup_cve(keyword, limit=limit)
+
+    def get_strace(self, timeout: int = 5) -> dict:
+        return run_strace(self.filepath, timeout=timeout)
+
+    def get_ltrace(self, timeout: int = 5) -> dict:
+        return run_ltrace(self.filepath, timeout=timeout)
 
     def solve(self, function_name: str = "main") -> dict:
         """

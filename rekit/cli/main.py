@@ -21,8 +21,16 @@ BANNER = r"""
  ██╔══██╗██╔══╝  ██╔═██╗ ██║   ██║
  ██║  ██║███████╗██║  ██╗██║   ██║
  ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝   ╚═╝
-[/bold cyan][dim]RE Toolkit v0.3.0 — Auto-Solver Edition[/dim]
+[/bold cyan][dim]RE Toolkit v0.4.0 — Dynamic Analysis Edition[/dim]
 """
+
+# Library calls that are interesting for reverse engineering
+SUSPICIOUS_CALLS = (
+    "strcmp", "strncmp", "memcmp", "strcpy", "strcat",
+    "scanf", "printf", "puts", "gets", "fgets",
+    "system", "exec", "popen", "ptrace",
+    "open", "read", "write", "fopen",
+)
 
 
 def ask_path() -> str | None:
@@ -124,6 +132,40 @@ def show_solver(engine: RekitEngine):
             console.print(f"  [yellow]![/yellow] {w}")
 
 
+def show_dynamic(engine: RekitEngine):
+    """Run the binary under strace and ltrace, highlight suspicious calls."""
+    console.print("\n[bold magenta]=== DYNAMIC ANALYSIS ===[/bold magenta]")
+
+    # --- ltrace (library calls) ---
+    console.print("\n[bold cyan]--- ltrace (library calls) ---[/bold cyan]")
+    ltrace_result = engine.get_ltrace()
+    if ltrace_result["error"]:
+        console.print(f"[red][!] {ltrace_result['error']}[/red]")
+    else:
+        suspicious_lines = []
+        for line in ltrace_result["output"].splitlines():
+            # Highlight suspicious calls
+            if any(call in line for call in SUSPICIOUS_CALLS):
+                suspicious_lines.append(f"[bold yellow]{line}[/bold yellow]")
+            else:
+                suspicious_lines.append(f"[dim]{line}[/dim]")
+
+        # Show only the first ~40 lines to keep it readable
+        for line in suspicious_lines[:40]:
+            console.print(line)
+        if len(suspicious_lines) > 40:
+            console.print(f"[dim]... ({len(suspicious_lines) - 40} more lines)[/dim]")
+
+    # --- strace (syscalls) ---
+    console.print("\n[bold cyan]--- strace (system calls, first 20) ---[/bold cyan]")
+    strace_result = engine.get_strace()
+    if strace_result["error"]:
+        console.print(f"[red][!] {strace_result['error']}[/red]")
+    else:
+        for line in strace_result["output"].splitlines()[:20]:
+            console.print(f"[dim]{line}[/dim]")
+
+
 def show_cve(engine: RekitEngine):
     keyword = Prompt.ask("[bold cyan]Enter software name or CVE keyword[/bold cyan]")
     try:
@@ -156,6 +198,7 @@ def full_analysis(engine: RekitEngine):
     show_strings(engine)
     show_entropy(engine)
     show_disassembly(engine)
+    show_solver(engine)
 
 
 def menu():
@@ -169,13 +212,14 @@ def menu():
         "[bold cyan]6[/bold cyan]  Disassembly (cmp constants)\n"
         "[bold cyan]7[/bold cyan]  CVE lookup\n"
         "[bold cyan]8[/bold cyan]  Auto-solver (find password)\n"
+        "[bold cyan]9[/bold cyan]  Dynamic analysis (strace + ltrace)\n"
         "[bold cyan]0[/bold cyan]  Exit",
         title="[bold magenta]RE Toolkit[/bold magenta]",
         border_style="magenta",
     ))
 
     choice = Prompt.ask("[bold cyan]Choose[/bold cyan]",
-                        choices=[str(i) for i in range(9)], default="1")
+                        choices=[str(i) for i in range(10)], default="1")
 
     if choice == "0":
         console.print("[bold green]Goodbye![/bold green]")
@@ -196,6 +240,7 @@ def menu():
         elif choice == "6": show_disassembly(engine)
         elif choice == "7": show_cve(engine)
         elif choice == "8": show_solver(engine)
+        elif choice == "9": show_dynamic(engine)
     except Exception as e:
         console.print(f"[red][!] Error: {e}[/red]")
 
