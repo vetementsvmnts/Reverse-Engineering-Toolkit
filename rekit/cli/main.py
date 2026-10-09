@@ -1,5 +1,6 @@
 """
 Command-line interface for the RE toolkit.
+Developed By Kitsana Thuekoh
 """
 import sys
 from pathlib import Path
@@ -21,10 +22,10 @@ BANNER = r"""
  ██╔══██╗██╔══╝  ██╔═██╗ ██║   ██║
  ██║  ██║███████╗██║  ██╗██║   ██║
  ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝   ╚═╝
-[/bold cyan][dim]RE Toolkit v0.4.0 — Dynamic Analysis Edition[/dim]
+[/bold cyan][dim]RE Toolkit v0.6.0 — Reporting Edition[/dim]
+[bold yellow]Developed By Kitsana Thuekoh[/bold yellow]
 """
 
-# Library calls that are interesting for reverse engineering
 SUSPICIOUS_CALLS = (
     "strcmp", "strncmp", "memcmp", "strcpy", "strcat",
     "scanf", "printf", "puts", "gets", "fgets",
@@ -133,10 +134,8 @@ def show_solver(engine: RekitEngine):
 
 
 def show_dynamic(engine: RekitEngine):
-    """Run the binary under strace and ltrace, highlight suspicious calls."""
     console.print("\n[bold magenta]=== DYNAMIC ANALYSIS ===[/bold magenta]")
 
-    # --- ltrace (library calls) ---
     console.print("\n[bold cyan]--- ltrace (library calls) ---[/bold cyan]")
     ltrace_result = engine.get_ltrace()
     if ltrace_result["error"]:
@@ -144,19 +143,16 @@ def show_dynamic(engine: RekitEngine):
     else:
         suspicious_lines = []
         for line in ltrace_result["output"].splitlines():
-            # Highlight suspicious calls
             if any(call in line for call in SUSPICIOUS_CALLS):
                 suspicious_lines.append(f"[bold yellow]{line}[/bold yellow]")
             else:
                 suspicious_lines.append(f"[dim]{line}[/dim]")
 
-        # Show only the first ~40 lines to keep it readable
         for line in suspicious_lines[:40]:
             console.print(line)
         if len(suspicious_lines) > 40:
             console.print(f"[dim]... ({len(suspicious_lines) - 40} more lines)[/dim]")
 
-    # --- strace (syscalls) ---
     console.print("\n[bold cyan]--- strace (system calls, first 20) ---[/bold cyan]")
     strace_result = engine.get_strace()
     if strace_result["error"]:
@@ -164,6 +160,24 @@ def show_dynamic(engine: RekitEngine):
     else:
         for line in strace_result["output"].splitlines()[:20]:
             console.print(f"[dim]{line}[/dim]")
+
+
+def show_decompiled(engine: RekitEngine):
+    console.print("\n[bold magenta]=== DECOMPILATION (Radare2 pdc) ===[/bold magenta]")
+
+    result = engine.get_decompiled("main")
+    if result.get("error"):
+        console.print(f"[red][!] {result['error']}[/red]")
+        return
+
+    console.print(f"\n[bold cyan]--- main() ---[/bold cyan]")
+    console.print(result["code"])
+
+    functions = engine.get_functions()
+    if functions:
+        console.print(f"\n[bold cyan]--- Detected Functions ({len(functions)}) ---[/bold cyan]")
+        for f in functions:
+            console.print(f"  [dim]{f['name']} (size: {f['size']})[/dim]")
 
 
 def show_cve(engine: RekitEngine):
@@ -202,7 +216,6 @@ def full_analysis(engine: RekitEngine):
 
 
 def menu():
-    console.print(BANNER)
     console.print(Panel(
         "[bold cyan]1[/bold cyan]  Full analysis\n"
         "[bold cyan]2[/bold cyan]  File info\n"
@@ -213,13 +226,14 @@ def menu():
         "[bold cyan]7[/bold cyan]  CVE lookup\n"
         "[bold cyan]8[/bold cyan]  Auto-solver (find password)\n"
         "[bold cyan]9[/bold cyan]  Dynamic analysis (strace + ltrace)\n"
+        "[bold cyan]10[/bold cyan] Decompile main (Radare2)\n"
         "[bold cyan]0[/bold cyan]  Exit",
         title="[bold magenta]RE Toolkit[/bold magenta]",
         border_style="magenta",
     ))
 
     choice = Prompt.ask("[bold cyan]Choose[/bold cyan]",
-                        choices=[str(i) for i in range(10)], default="1")
+                        choices=[str(i) for i in range(11)], default="1")
 
     if choice == "0":
         console.print("[bold green]Goodbye![/bold green]")
@@ -241,6 +255,7 @@ def menu():
         elif choice == "7": show_cve(engine)
         elif choice == "8": show_solver(engine)
         elif choice == "9": show_dynamic(engine)
+        elif choice == "10": show_decompiled(engine)
     except Exception as e:
         console.print(f"[red][!] Error: {e}[/red]")
 
@@ -248,14 +263,43 @@ def menu():
 
 
 def main():
-    if len(sys.argv) > 1:
-        path = sys.argv[1]
-        if not Path(path).exists():
-            console.print(f"[red][!] File not found: {path}[/red]")
+    import argparse
+    from rekit.utils.report import build_report, save_json
+
+    parser = argparse.ArgumentParser(
+        prog="rekit",
+        description="Reverse Engineering Toolkit — Developed By Kitsana Thuekoh",
+    )
+    parser.add_argument("path", nargs="?", help="Path to the binary to analyze")
+    parser.add_argument("--json", metavar="FILE", help="Save full report to JSON file")
+    parser.add_argument("--quiet", action="store_true", help="Minimal output")
+    parser.add_argument("--verbose", action="store_true", help="Show everything")
+
+    args = parser.parse_args()
+
+    # ---- Non-interactive mode ----
+    if args.path:
+        if not Path(args.path).exists():
+            console.print(f"[red][!] File not found: {args.path}[/red]")
             sys.exit(1)
-        full_analysis(RekitEngine(path))
+
+        engine = RekitEngine(args.path)
+
+        if args.json:
+            try:
+                report = build_report(engine)
+                saved_to = save_json(report, args.json)
+                if not args.quiet:
+                    console.print(f"[green][+] Report saved to: {saved_to}[/green]")
+            except Exception as e:
+                console.print(f"[red][!] Failed to save JSON: {e}[/red]")
+
+        if not args.quiet:
+            full_analysis(engine)
         return
 
+    # ---- Interactive mode ----
+    console.print(BANNER)
     try:
         while menu():
             if not Confirm.ask("[bold cyan]Run another task?[/bold cyan]", default=True):

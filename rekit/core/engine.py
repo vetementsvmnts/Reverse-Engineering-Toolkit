@@ -9,6 +9,7 @@ from rekit.analysis.disassembly import disassemble_function, extract_cmp_constan
 from rekit.analysis.cve import lookup_cve
 from rekit.analysis.format_strings import find_format_strings
 from rekit.analysis.dynamic import run_strace, run_ltrace
+from rekit.analysis.radare import decompile_function, get_functions
 
 
 class RekitEngine:
@@ -52,6 +53,12 @@ class RekitEngine:
 
     def get_ltrace(self, timeout: int = 5) -> dict:
         return run_ltrace(self.filepath, timeout=timeout)
+
+    def get_decompiled(self, function_name: str = "main") -> dict:
+        return decompile_function(self.filepath, function_name)
+
+    def get_functions(self) -> list:
+        return get_functions(self.filepath)
 
     def solve(self, function_name: str = "main") -> dict:
         """
