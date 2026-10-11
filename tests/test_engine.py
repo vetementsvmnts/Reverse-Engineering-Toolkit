@@ -1,28 +1,48 @@
+"""
+Unit tests for the RekitEngine.
+"""
+import pytest
 from rekit.core.engine import RekitEngine
 
-print("[*] Testing core engine...")
-engine = RekitEngine('samples/test_crackme')
+# Path to our test crackme
+SAMPLE = 'samples/thefirsttest'
 
-print("\n--- File Info ---")
-info = engine.get_file_info()
-print(f"Size: {info['Size']}")
 
-print("\n--- Mitigations ---")
-mits = engine.get_mitigations()
-print(f"PIE: {mits['PIE']}, Canary: {mits['Stack Canary']}")
+def test_engine_initialization():
+    """Test that the engine loads a file correctly."""
+    engine = RekitEngine(SAMPLE)
+    assert engine.filepath == SAMPLE
 
-print("\n--- Strings (categories) ---")
-strings = engine.get_strings()
-for cat, items in strings["categories"].items():
-    if items:
-        print(f"  {cat}: {items}")
 
-print("\n--- Disassembly (cmp constants) ---")
-disasm = engine.get_disassembly()
-if "error" in disasm:
-    print(f"  Error: {disasm['error']}")
-else:
-    for cmp in disasm["cmp_constants"]:
-        print(f"  cmp {cmp['register']}, {cmp['hex']}  ->  {cmp['decimal']}")
+def test_mitigations():
+    """Test that the engine can analyze security mitigations."""
+    engine = RekitEngine(SAMPLE)
+    mits = engine.get_mitigations()
+    assert mits['Architecture'] == 'amd64'
+    assert mits['PIE'] is False  # thefirsttest is not PIE
+    assert mits['NX (No Exec)'] is True
 
-print("\n[*] Success!")
+
+def test_solve_thefirsttest():
+    """Test that the auto-solver finds the correct integer password."""
+    engine = RekitEngine(SAMPLE)
+    report = engine.solve()
+    
+    # Ensure no errors occurred
+    assert report['error'] is None
+    
+    # Ensure we found at least one candidate
+    assert len(report['candidates']) > 0
+    
+    # Check that the first candidate matches our expected password
+    first = report['candidates'][0]
+    assert first['decimal'] == 1923855305
+    assert first['hex'] == '0x72abb3c9'
+    assert first['interpreted_as'] == 'decimal integer'
+
+
+def test_format_strings():
+    """Test that format strings are detected correctly."""
+    engine = RekitEngine(SAMPLE)
+    formats = engine.get_format_strings()
+    assert any(f['specifier'] == '%d' for f in formats)

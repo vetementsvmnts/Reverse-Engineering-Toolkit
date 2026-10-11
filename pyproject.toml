@@ -4,19 +4,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rekit"
-version = "0.2.0"
+version = "0.7.0"
 description = "A reverse engineering toolkit for analyzing ELF binaries on Kali Linux."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [
-    { name = "vetementsvmnts" }
+    { name = "Kitsana Thuekoh" }
 ]
 dependencies = [
     "pwntools",
     "rich",
     "nvdlib",
     "capstone",
+    "r2pipe",
 ]
 
 [project.scripts]
@@ -24,3 +25,6 @@ rekit = "rekit.cli.main:main"
 
 [tool.setuptools.packages.find]
 include = ["rekit*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
