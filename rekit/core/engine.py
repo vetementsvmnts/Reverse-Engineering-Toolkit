@@ -10,6 +10,7 @@ from rekit.analysis.cve import lookup_cve
 from rekit.analysis.format_strings import find_format_strings
 from rekit.analysis.dynamic import run_strace, run_ltrace
 from rekit.analysis.radare import decompile_function, get_functions
+from rekit.analysis.hex_strings import extract_hex_strings
 
 
 class RekitEngine:
@@ -45,6 +46,14 @@ class RekitEngine:
     def get_format_strings(self) -> list:
         return find_format_strings(self.filepath)
 
+    def get_hex_strings(self) -> list:
+        """Extract ASCII strings hidden inside hex constants in main()."""
+        try:
+            instructions = disassemble_function(self.filepath, "main")
+            return extract_hex_strings(instructions)
+        except Exception:
+            return []
+
     def get_cves(self, keyword: str, limit: int = 5) -> list:
         return lookup_cve(keyword, limit=limit)
 
@@ -65,7 +74,8 @@ class RekitEngine:
         Attempt to auto-solve a crackme by combining:
           - cmp constants from the disassembly
           - format strings from .rodata
-        Returns a dict with candidates and any warnings.
+          - hex constants that decode to ASCII
+        Returns a dict with candidates and warnings.
         """
         result = {
             "function": function_name,
@@ -76,22 +86,12 @@ class RekitEngine:
 
         try:
             disasm = self.get_disassembly(function_name)
-            if "error" in disasm and disasm["error"]:
-                result["error"] = disasm["error"]
-                return result
-
             formats = self.get_format_strings()
+            hex_strings = self.get_hex_strings()
             cmp_constants = disasm.get("cmp_constants", [])
         except Exception as e:
             result["error"] = str(e)
             return result
-
-        # Find the most relevant format string (first one with %d/%x)
-        fmt = None
-        for f in formats:
-            if f["specifier"] in ("%d", "%x"):
-                fmt = f
-                break
 
         # Warn about the whitespace hang bug (\n in scanf format)
         for f in formats:
@@ -102,16 +102,49 @@ class RekitEngine:
                 )
                 break
 
-        # Build candidate passwords
+        # --- Integer candidates (from cmp instructions) ---
+        fmt = next((f for f in formats if f["specifier"] in ("%d", "%x")), None)
         for cmp in cmp_constants:
-            candidate = {
+            result["candidates"].append({
+                "type": "integer",
                 "hex": cmp["hex"],
                 "decimal": cmp["decimal"],
                 "register": cmp["register"],
                 "address": cmp["address"],
                 "format": fmt["format"] if fmt else None,
                 "interpreted_as": fmt["interpreted_as"] if fmt else "unknown",
-            }
-            result["candidates"].append(candidate)
+                "suggested": str(cmp["decimal"]),
+            })
+
+        # --- String candidates (from hex constants in main) ---
+        for h in hex_strings:
+            for s in h["strings"]:
+                result["candidates"].append({
+                    "type": "string",
+                    "hex": h["hex"],
+                    "address": h["address"],
+                    "string": s,
+                    "format": "%s",
+                    "interpreted_as": "string (from hex constant)",
+                    "suggested": s,
+                })
+
+        # --- Concatenated string candidate ---
+        # If 2+ hex strings are found, join the LAST decoded version of each
+        # (usually Little Endian), which often reconstructs the full password.
+        if len(hex_strings) >= 2:
+            parts = [h["strings"][-1] for h in hex_strings if h["strings"]]
+            if len(parts) >= 2:
+                joined = "".join(parts)
+                result["candidates"].append({
+                    "type": "joined_string",
+                    "hex": " + ".join(h["hex"] for h in hex_strings),
+                    "address": hex_strings[0]["address"],
+                    "string": joined,
+                    "format": "%s",
+                    "interpreted_as": "concatenated string",
+                    "suggested": joined,
+                    "note": "Concatenation of all decoded hex constants",
+                })
 
         return result

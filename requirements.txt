@@ -1,0 +1,5 @@
+pwntools
+rich
+nvdlib
+pytest
+r2pipe

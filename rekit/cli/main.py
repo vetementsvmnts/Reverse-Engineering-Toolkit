@@ -22,7 +22,7 @@ BANNER = r"""
  ██╔══██╗██╔══╝  ██╔═██╗ ██║   ██║
  ██║  ██║███████╗██║  ██╗██║   ██║
  ╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝   ╚═╝
-[/bold cyan][dim]RE Toolkit v0.6.0 — Reporting Edition[/dim]
+[/bold cyan][dim]RE Toolkit v0.8.0 — Hex Decoder Edition[/dim]
 [bold yellow]Developed By Kitsana Thuekoh[/bold yellow]
 """
 
@@ -105,7 +105,7 @@ def show_disassembly(engine: RekitEngine):
 
 
 def show_solver(engine: RekitEngine):
-    """Display the auto-solver report."""
+    """Display the auto-solver report (supports integer, string, and joined candidates)."""
     report = engine.solve()
 
     if report.get("error"):
@@ -117,15 +117,24 @@ def show_solver(engine: RekitEngine):
 
     if not candidates:
         console.print("[yellow]No password candidates found.[/yellow]")
+        if warnings:
+            for w in warnings:
+                console.print(f"  [yellow]![/yellow] {w}")
         return
 
     console.print("\n[bold yellow]=== AUTO-SOLVER RESULTS ===[/bold yellow]")
     for c in candidates:
-        console.print(f"\n  [bold]Address:[/bold] {c['address']}")
-        console.print(f"  [bold]Instruction:[/bold] cmp {c['register']}, {c['hex']}")
-        console.print(f"  [bold]Format string:[/bold] {c['format']}")
-        console.print(f"  [bold]Interpreted as:[/bold] {c['interpreted_as']}")
-        console.print(f"  [bold green]→ Suggested password: {c['decimal']}[/bold green]")
+        ctype = c.get("type", "unknown")
+        console.print(f"\n  [bold cyan]--- {ctype} ---[/bold cyan]")
+        console.print(f"    [bold]Address:[/bold] {c.get('address', '?')}")
+        console.print(f"    [bold]Hex:[/bold] {c.get('hex', '?')}")
+        if "register" in c:
+            console.print(f"    [bold]Instruction:[/bold] cmp {c['register']}, {c['hex']}")
+        console.print(f"    [bold]Format:[/bold] {c.get('format', 'N/A')}")
+        console.print(f"    [bold]Interpreted as:[/bold] {c.get('interpreted_as', 'unknown')}")
+        console.print(f"    [bold green]→ Suggested: {c.get('suggested', 'N/A')}[/bold green]")
+        if c.get("note"):
+            console.print(f"    [dim]{c['note']}[/dim]")
 
     if warnings:
         console.print("\n[bold red]=== WARNINGS ===[/bold red]")
